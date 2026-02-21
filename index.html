@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Receipt Splitter</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 24px; max-width: 1100px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .muted { color: #666; font-size: 13px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 14px 0; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    textarea { width: min(680px, 100%); height: 56px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #f7f7f7; cursor: pointer; }
+    button:hover { background: #f0f0f0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; border-bottom: 1px solid #eee; padding: 10px 8px; vertical-align: top; }
+    th { font-size: 13px; color: #444; }
+    td { font-size: 14px; }
+    select { width: 100%; max-width: 260px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; background: #fff; }
+    .right { text-align: right; white-space: nowrap; }
+    .totals { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; max-width: 520px; }
+    .totals .name { color: #111; }
+    .totals .amt { text-align: right; white-space: nowrap; }
+    .warn { color: #b45309; }
+  </style>
+</head>
+<body>
+  <h1>Receipt Splitter</h1>
+  <div class="muted">Choose a person for each line item. Selections are saved in your browser and stay after refresh.</div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="font-weight:600; margin-bottom:6px;">People (comma-separated)</div>
+        <textarea id="peopleInput" placeholder="e.g. Alex, Sam, Jordan"></textarea>
+        <div class="muted">These names appear in each pull-down.</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+        <button id="savePeopleBtn">Save people</button>
+        <button id="resetBtn" title="Clears saved people + assignments">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:600; margin-bottom:10px;">Items (already include the $10.25 card surcharge allocated across items)</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 18%;">Category</th>
+          <th>Item</th>
+          <th style="width: 13%;">Assigned to</th>
+          <th class="right" style="width: 14%;">Total</th>
+        </tr>
+      </thead>
+      <tbody id="itemsTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:600; margin-bottom:10px;">Totals</div>
+    <div id="totalsBox" class="totals"></div>
+    <div id="unassignedNote" class="muted" style="margin-top:12px;"></div>
+  </div>
+
+<script>
+  const STORAGE_KEY = "receipt_splitter_v1";
+
+  const items = [
+    { id:"a1", category:"Drinks (Alcohol)", label:"GLS Italian Plastic Golden × 2", total:30.41 },
+    { id:"a2", category:"Drinks (Alcohol)", label:"Guest Beer – Air Head Hazy", total:17.23 },
+    { id:"a3", category:"Drinks (Alcohol)", label:"Love Shack – Pale Ale × 5", total:70.96 },
+    { id:"a4", category:"Drinks (Alcohol)", label:"Wombat Draught × 3", total:39.53 },
+    { id:"a5", category:"Drinks (Alcohol)", label:"Heaps Normal Lager × 5", total:55.75 },
+    { id:"a6", category:"Drinks (Alcohol)", label:"Stone & Wood", total:17.23 },
+    { id:"a7", category:"Drinks (Alcohol)", label:"BOTTLE Tenacity Reserve Shiraz", total:69.94 },
+
+    { id:"b1", category:"Drinks (Non-Alcoholic)", label:"Soft Drink – Lemon Lime Bitters", total:5.07 },
+
+    { id:"c1", category:"Starters / Small Plates", label:"Steak Tartare × 2", total:40.54 },
+    { id:"c2", category:"Starters / Small Plates", label:"Scotch Egg & Mustard", total:12.16 },
+    { id:"c3", category:"Starters / Small Plates", label:"Torched Mackerel", total:20.27 },
+    { id:"c4", category:"Starters / Small Plates", label:"Potato Flatbread", total:11.15 },
+
+    { id:"d1", category:"Mains", label:"Fish of the Day", total:44.60 },
+    { id:"d2", category:"Mains", label:"Beef Burger × 3", total:73.00 },
+    { id:"d3", category:"Mains", label:"Scotch Fillet × 2", total:93.25 },
+    { id:"d4", category:"Mains", label:"Special – Duck Breast Salad", total:45.61 },
+
+    { id:"e1", category:"Sides / Salads", label:"Courgette Salad × 2", total:22.30 },
+    { id:"e2", category:"Sides / Salads", label:"Chippies with Fennel Salt × 2", total:20.27 },
+
+    { id:"f1", category:"Dessert", label:"Pie of the Day × 2", total:58.79 },
+    { id:"f2", category:"Dessert", label:"Sticky Toffee Pudding", total:14.19 },
+  ];
+
+  function money(n) {
+    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { people: ["Unassigned"], assigned: {} };
+      const parsed = JSON.parse(raw);
+      const people = Array.isArray(parsed.people) && parsed.people.length ? parsed.people : ["Unassigned"];
+      const assigned = (parsed.assigned && typeof parsed.assigned === "object") ? parsed.assigned : {};
+      if (!people.includes("Unassigned")) people.unshift("Unassigned");
+      return { people, assigned };
+    } catch {
+      return { people: ["Unassigned"], assigned: {} };
+    }
+  }
+
+  function saveState(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function parsePeople(text) {
+    const parts = text.split(",").map(s => s.trim()).filter(Boolean);
+    const uniq = [];
+    for (const p of parts) if (!uniq.includes(p)) uniq.push(p);
+    if (!uniq.includes("Unassigned")) uniq.unshift("Unassigned");
+    return uniq.length ? uniq : ["Unassigned"];
+  }
+
+  function render() {
+    const state = loadState();
+
+    // people input
+    const peopleInput = document.getElementById("peopleInput");
+    const peopleWithoutUnassigned = state.people.filter(p => p !== "Unassigned");
+    peopleInput.value = peopleWithoutUnassigned.join(", ");
+
+    // items table
+    const tbody = document.getElementById("itemsTbody");
+    tbody.innerHTML = "";
+    for (const it of items) {
+      const tr = document.createElement("tr");
+
+      const tdCat = document.createElement("td");
+      tdCat.textContent = it.category;
+
+      const tdItem = document.createElement("td");
+      tdItem.textContent = it.label;
+
+      const tdSel = document.createElement("td");
+      const sel = document.createElement("select");
+      for (const p of state.people) {
+        const opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        sel.appendChild(opt);
+      }
+      sel.value = state.assigned[it.id] || "Unassigned";
+      sel.addEventListener("change", () => {
+        const s = loadState();
+        s.assigned[it.id] = sel.value;
+        saveState(s);
+        renderTotals();
+      });
+      tdSel.appendChild(sel);
+
+      const tdTotal = document.createElement("td");
+      tdTotal.className = "right";
+      tdTotal.textContent = money(it.total);
+
+      tr.appendChild(tdCat);
+      tr.appendChild(tdItem);
+      tr.appendChild(tdSel);
+      tr.appendChild(tdTotal);
+      tbody.appendChild(tr);
+    }
+
+    renderTotals();
+  }
+
+  function renderTotals() {
+    const state = loadState();
+    const totals = {};
+    for (const p of state.people) totals[p] = 0;
+
+    for (const it of items) {
+      const who = state.assigned[it.id] || "Unassigned";
+      if (!(who in totals)) totals[who] = 0;
+      totals[who] += it.total;
+    }
+
+    const totalsBox = document.getElementById("totalsBox");
+    totalsBox.innerHTML = "";
+    const peopleOrder = state.people.slice();
+
+    // keep Unassigned last in display
+    const uaIdx = peopleOrder.indexOf("Unassigned");
+    if (uaIdx !== -1) {
+      peopleOrder.splice(uaIdx, 1);
+      peopleOrder.push("Unassigned");
+    }
+
+    for (const p of peopleOrder) {
+      const name = document.createElement("div");
+      name.className = "name" + (p === "Unassigned" ? " warn" : "");
+      name.textContent = p;
+
+      const amt = document.createElement("div");
+      amt.className = "amt" + (p === "Unassigned" ? " warn" : "");
+      amt.textContent = money(totals[p] || 0);
+
+      totalsBox.appendChild(name);
+      totalsBox.appendChild(amt);
+    }
+
+    const grand = Object.values(totals).reduce((a,b) => a+b, 0);
+    const note = document.getElementById("unassignedNote");
+    const unassigned = totals["Unassigned"] || 0;
+
+    note.innerHTML = "";
+    const line1 = document.createElement("div");
+    line1.textContent = "Grand total: " + money(grand);
+    note.appendChild(line1);
+
+    const line2 = document.createElement("div");
+    line2.className = unassigned > 0 ? "warn" : "";
+    line2.textContent = unassigned > 0
+      ? ("Unassigned remaining: " + money(unassigned))
+      : "All items assigned.";
+    note.appendChild(line2);
+  }
+
+  document.getElementById("savePeopleBtn").addEventListener("click", () => {
+    const state = loadState();
+    const text = document.getElementById("peopleInput").value;
+    state.people = parsePeople(text);
+    saveState(state);
+    render();
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
