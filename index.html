@@ -2,247 +2,615 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Receipt Splitter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Receipt Split</title>
   <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    body { margin: 24px; max-width: 1100px; }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    .muted { color: #666; font-size: 13px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 14px 0; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    textarea { width: min(680px, 100%); height: 56px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; }
-    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #f7f7f7; cursor: pointer; }
-    button:hover { background: #f0f0f0; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; border-bottom: 1px solid #eee; padding: 10px 8px; vertical-align: top; }
-    th { font-size: 13px; color: #444; }
-    td { font-size: 14px; }
-    select { width: 100%; max-width: 260px; padding: 8px; border-radius: 10px; border: 1px solid #ddd; background: #fff; }
-    .right { text-align: right; white-space: nowrap; }
-    .totals { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; max-width: 520px; }
-    .totals .name { color: #111; }
-    .totals .amt { text-align: right; white-space: nowrap; }
-    .warn { color: #b45309; }
+    :root{
+      --bg: #f6f7fb;
+      --panel2: rgba(255,255,255,.96);
+      --stroke: rgba(15,23,42,.10);
+      --stroke2: rgba(15,23,42,.08);
+      --text: rgba(15,23,42,.92);
+      --muted: rgba(15,23,42,.62);
+      --shadow2: 0 10px 28px rgba(2,6,23,.08);
+      --r: 18px;
+
+      --mineBg: rgba(16,185,129,.10);
+      --mineStroke: rgba(16,185,129,.20);
+      --mineText: rgba(5,150,105,.95);
+
+      --otherOpacity: .55;
+    }
+    *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% -20%, rgba(56,189,248,.22), transparent 60%),
+        radial-gradient(900px 520px at 110% 0%, rgba(232,121,249,.18), transparent 55%),
+        radial-gradient(900px 520px at 40% 110%, rgba(34,197,94,.14), transparent 55%),
+        var(--bg);
+    }
+    .wrap{ max-width: 980px; margin: 0 auto; padding: 86px 14px 44px; }
+
+    .topbar{
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: calc(env(safe-area-inset-top) + 10px) 14px 12px;
+      z-index: 50; backdrop-filter: blur(14px);
+      background: linear-gradient(to bottom, rgba(246,247,251,.92), rgba(246,247,251,.72));
+      border-bottom: 1px solid var(--stroke2);
+    }
+    .topbar-inner{
+      max-width: 980px; margin: 0 auto;
+      display:flex; gap: 10px; align-items: center; justify-content: space-between;
+    }
+    .brand b{ font-size: 14px; letter-spacing:.2px; }
+
+    .controls{ display:flex; gap: 10px; align-items:center; flex-shrink:0; }
+    select, input{
+      appearance: none; background: var(--panel2); color: var(--text);
+      border: 1px solid var(--stroke); border-radius: 999px;
+      padding: 10px 36px 10px 12px; font-weight: 700; font-size: 13px; outline: none;
+      box-shadow: var(--shadow2);
+      max-width: 42vw;
+    }
+    select{
+      background-image:
+        linear-gradient(45deg, transparent 50%, rgba(15,23,42,.72) 50%),
+        linear-gradient(135deg, rgba(15,23,42,.72) 50%, transparent 50%),
+        linear-gradient(to right, transparent, transparent);
+      background-position:
+        calc(100% - 18px) calc(50% - 2px),
+        calc(100% - 13px) calc(50% - 2px),
+        0 0;
+      background-size: 6px 6px, 6px 6px, 100% 100%;
+      background-repeat: no-repeat;
+    }
+    input{ padding-right: 12px; }
+
+    .pill{
+      padding: 9px 12px; border-radius: 999px; border: 1px solid var(--stroke);
+      background: var(--panel2); font-weight: 900; font-size: 13px; white-space: nowrap;
+      box-shadow: var(--shadow2); font-variant-numeric: tabular-nums;
+      transform: translateZ(0);
+    }
+    .pill.pop{ animation: pop .22s ease-out; }
+    @keyframes pop{
+      0%{ transform: scale(1); }
+      35%{ transform: scale(1.24); }
+      60%{ transform: scale(0.98); }
+      100%{ transform: scale(1); }
+    }
+
+    .btn{
+      border: 1px solid var(--stroke); background: var(--panel2); color: var(--text);
+      border-radius: 999px; padding: 9px 12px; font-weight: 900; font-size: 13px;
+      cursor: pointer; box-shadow: var(--shadow2);
+      white-space: nowrap;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .section{
+      margin-top: 14px; border-radius: var(--r);
+      border: 1px solid var(--stroke2); background: rgba(255,255,255,.68);
+      box-shadow: var(--shadow2); overflow:hidden;
+    }
+    .section-h{
+      padding: 12px 14px; display:flex; align-items:center; justify-content: space-between;
+      border-bottom: 1px solid var(--stroke2); background: rgba(255,255,255,.55);
+      gap: 12px;
+    }
+    .section-h b{ font-size: 13px; letter-spacing:.2px; }
+    .section-h span{ font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    .grid{ display:grid; grid-template-columns: 1fr; }
+    .item{
+      display:flex; align-items:center; justify-content: space-between; gap: 12px;
+      padding: 12px 14px; border-bottom: 1px solid var(--stroke2);
+      cursor: pointer; user-select: none;
+      transition: background .12s ease, transform .05s ease, opacity .12s ease;
+      touch-action: manipulation;
+    }
+    .item:last-child{ border-bottom: 0; }
+
+    .left{ min-width: 0; display:flex; flex-direction:column; gap: 2px; }
+    .label{
+      font-weight: 900; font-size: 14px; letter-spacing: .1px;
+      white-space: nowrap; overflow:hidden; text-overflow: ellipsis;
+    }
+    .meta{ font-size: 12px; color: var(--muted); display:flex; gap: 8px; align-items:center; flex-wrap: wrap; }
+    .tag{
+      font-size: 11px; padding: 2px 8px; border: 1px solid var(--stroke);
+      border-radius: 999px; color: rgba(15,23,42,.72); background: rgba(255,255,255,.72);
+    }
+    .right{ display:flex; align-items:center; gap: 10px; flex-shrink:0; }
+    .amt{ font-variant-numeric: tabular-nums; font-weight: 950; letter-spacing:.2px; }
+
+    .state-dot{
+      width: 10px; height: 10px; border-radius: 999px;
+      border: 1px solid rgba(15,23,42,.18); background: rgba(15,23,42,.06);
+      flex-shrink:0;
+    }
+
+    .item.mine{ background: var(--mineBg); border-bottom-color: rgba(16,185,129,.14); }
+    .item.mine .state-dot{ background: rgba(16,185,129,.90); border-color: rgba(16,185,129,.25); }
+    .item.mine .meta{ color: rgba(5,150,105,.85); }
+    .item.mine .tag{ border-color: var(--mineStroke); color: var(--mineText); background: rgba(16,185,129,.10); }
+
+    .item.other{ opacity: var(--otherOpacity); background: rgba(15,23,42,.02); }
+    .item.other .state-dot{ background: rgba(15,23,42,.10); }
+
+    .item.unclaimed:active{ transform: translateY(1px); background: rgba(255,255,255,.92); }
+    .item.mine:active, .item.other:active{ transform: translateY(1px); }
+
+    .error{
+      margin-top: 12px; padding: 12px 14px; border-radius: var(--r);
+      border: 1px solid rgba(239,68,68,.20); background: rgba(239,68,68,.08);
+      color: rgba(127,29,29,.92); font-size: 13px;
+    }
+
+    .gate{
+      position: fixed; inset: 0; z-index: 100; display:none;
+      padding: calc(env(safe-area-inset-top) + 18px) 14px 18px;
+      background: rgba(246,247,251,.86); backdrop-filter: blur(10px);
+    }
+    .gate.show{ display:flex; }
+    .gate-card{
+      width: min(560px, 100%); margin: auto;
+      border-radius: calc(var(--r) + 10px); border: 1px solid var(--stroke2);
+      background: rgba(255,255,255,.92); box-shadow: 0 18px 50px rgba(2,6,23,.10);
+      padding: 18px 16px;
+    }
+    .gate-card h2{ margin: 0 0 12px; font-size: 18px; letter-spacing: .2px; }
+    .gate-row{ display:flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+    .gate-row > *{ flex: 1; min-width: 240px; max-width: 100%; }
+    .hidden{ display:none !important; }
+
+    @media (min-width: 740px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+      .item{ border-right: 1px solid var(--stroke2); }
+      .item:nth-child(2n){ border-right: 0; }
+      .item:nth-last-child(-n+2){ border-bottom: 0; }
+      .item{ padding: 13px 16px; }
+      .label{ font-size: 15px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Receipt Splitter</h1>
-  <div class="muted">Choose a person for each line item. Selections are saved in your browser and stay after refresh.</div>
-
-  <div class="card">
-    <div class="row">
-      <div>
-        <div style="font-weight:600; margin-bottom:6px;">People (comma-separated)</div>
-        <textarea id="peopleInput" placeholder="e.g. Alex, Sam, Jordan"></textarea>
-        <div class="muted">These names appear in each pull-down.</div>
-      </div>
-      <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">
-        <button id="savePeopleBtn">Save people</button>
-        <button id="resetBtn" title="Clears saved people + assignments">Reset</button>
+  <div class="topbar" id="topbar" style="display:none;">
+    <div class="topbar-inner">
+      <div class="brand"><b>Receipt Split</b></div>
+      <div class="controls">
+        <select id="meSelect" aria-label="Choose your name"></select>
+        <div class="pill" id="meTotal">$0</div>
+        <button class="btn" id="resetBtn" title="Clear saved claims on this device">Reset</button>
       </div>
     </div>
   </div>
 
-  <div class="card">
-    <div style="font-weight:600; margin-bottom:10px;">Items (already include the $10.25 card surcharge allocated across items)</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 18%;">Category</th>
-          <th>Item</th>
-          <th style="width: 13%;">Assigned to</th>
-          <th class="right" style="width: 14%;">Total</th>
-        </tr>
-      </thead>
-      <tbody id="itemsTbody"></tbody>
-    </table>
+  <div class="gate" id="gate">
+    <div class="gate-card">
+      <h2>Choose your name</h2>
+
+      <div class="gate-row" style="margin-bottom:10px;">
+        <select id="gateSelect" aria-label="Select your name"></select>
+        <button class="btn" id="continueBtn">Continue</button>
+      </div>
+
+      <div class="gate-row hidden" id="addRow">
+        <input id="newNameInput" type="text" placeholder="New name" autocomplete="name" />
+        <button class="btn" id="addBtn">Add</button>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <div style="font-weight:600; margin-bottom:10px;">Totals</div>
-    <div id="totalsBox" class="totals"></div>
-    <div id="unassignedNote" class="muted" style="margin-top:12px;"></div>
+  <div class="wrap" id="app" style="display:none;">
+    <div id="corsWarn" class="error" style="display:none;"></div>
+    <div id="sections"></div>
   </div>
 
 <script>
-  const STORAGE_KEY = "receipt_splitter_v1";
+  const STORAGE_KEY = "receipt_split_v9";
+  const ADD_OPTION_VALUE = "__ADD_NEW_NAME__";
+  let DATA = null;
 
-  const items = [
-    { id:"a1", category:"Drinks (Alcohol)", label:"GLS Italian Plastic Golden × 2", total:30.41 },
-    { id:"a2", category:"Drinks (Alcohol)", label:"Guest Beer – Air Head Hazy", total:17.23 },
-    { id:"a3", category:"Drinks (Alcohol)", label:"Love Shack – Pale Ale × 5", total:70.96 },
-    { id:"a4", category:"Drinks (Alcohol)", label:"Wombat Draught × 3", total:39.53 },
-    { id:"a5", category:"Drinks (Alcohol)", label:"Heaps Normal Lager × 5", total:55.75 },
-    { id:"a6", category:"Drinks (Alcohol)", label:"Stone & Wood", total:17.23 },
-    { id:"a7", category:"Drinks (Alcohol)", label:"BOTTLE Tenacity Reserve Shiraz", total:69.94 },
-
-    { id:"b1", category:"Drinks (Non-Alcoholic)", label:"Soft Drink – Lemon Lime Bitters", total:5.07 },
-
-    { id:"c1", category:"Starters / Small Plates", label:"Steak Tartare × 2", total:40.54 },
-    { id:"c2", category:"Starters / Small Plates", label:"Scotch Egg & Mustard", total:12.16 },
-    { id:"c3", category:"Starters / Small Plates", label:"Torched Mackerel", total:20.27 },
-    { id:"c4", category:"Starters / Small Plates", label:"Potato Flatbread", total:11.15 },
-
-    { id:"d1", category:"Mains", label:"Fish of the Day", total:44.60 },
-    { id:"d2", category:"Mains", label:"Beef Burger × 3", total:73.00 },
-    { id:"d3", category:"Mains", label:"Scotch Fillet × 2", total:93.25 },
-    { id:"d4", category:"Mains", label:"Special – Duck Breast Salad", total:45.61 },
-
-    { id:"e1", category:"Sides / Salads", label:"Courgette Salad × 2", total:22.30 },
-    { id:"e2", category:"Sides / Salads", label:"Chippies with Fennel Salt × 2", total:20.27 },
-
-    { id:"f1", category:"Dessert", label:"Pie of the Day × 2", total:58.79 },
-    { id:"f2", category:"Dessert", label:"Sticky Toffee Pudding", total:14.19 },
-  ];
-
-  function money(n) {
-    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-  }
-
-  function loadState() {
-    try {
+  function loadState(){
+    try{
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { people: ["Unassigned"], assigned: {} };
-      const parsed = JSON.parse(raw);
-      const people = Array.isArray(parsed.people) && parsed.people.length ? parsed.people : ["Unassigned"];
-      const assigned = (parsed.assigned && typeof parsed.assigned === "object") ? parsed.assigned : {};
-      if (!people.includes("Unassigned")) people.unshift("Unassigned");
-      return { people, assigned };
-    } catch {
-      return { people: ["Unassigned"], assigned: {} };
+      if(!raw) return { me: "", claims: {}, extraPeople: [] };
+      const s = JSON.parse(raw);
+      return {
+        me: typeof s.me === "string" ? s.me : "",
+        claims: (s.claims && typeof s.claims === "object") ? s.claims : {},
+        extraPeople: Array.isArray(s.extraPeople) ? s.extraPeople.filter(Boolean) : []
+      };
+    }catch{
+      return { me: "", claims: {}, extraPeople: [] };
     }
   }
+  function saveState(state){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-  function saveState(state) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  function canonicalName(x){ return String(x || "").trim().replace(/\s+/g, " "); }
+
+  function allPeople(){
+    const s = loadState();
+    const base = Array.isArray(DATA.people) ? DATA.people : [];
+    const extras = s.extraPeople || [];
+    const out = [];
+    for(const p of [...base, ...extras]){
+      const c = canonicalName(p);
+      if(c && !out.includes(c)) out.push(c);
+    }
+    return out;
   }
 
-  function parsePeople(text) {
-    const parts = text.split(",").map(s => s.trim()).filter(Boolean);
-    const uniq = [];
-    for (const p of parts) if (!uniq.includes(p)) uniq.push(p);
-    if (!uniq.includes("Unassigned")) uniq.unshift("Unassigned");
-    return uniq.length ? uniq : ["Unassigned"];
+  function money(n){
+    const rounded = Math.round(n * 100) / 100;
+    const isWhole = Math.abs(rounded - Math.round(rounded)) < 1e-9;
+    const txt = isWhole ? String(Math.round(rounded)) : rounded.toFixed(2);
+    return "$" + txt;
   }
 
-  function render() {
+  // New format: items have { label, price } and NO ids.
+  // Create a stable itemKey from section+index (stable as long as ordering doesn't change).
+  function itemKey(sectionIndex, itemIndex){
+    return "s" + sectionIndex + "_i" + itemIndex;
+  }
+
+  // claims[itemKey] = { by: ["Alex","Sam"] }
+  function getClaim(key){
+    const { claims } = loadState();
+    const c = claims[key];
+    if(!c || typeof c !== "object") return null;
+    const by = Array.isArray(c.by) ? c.by.filter(Boolean) : [];
+    return { by };
+  }
+
+  function setClaim(key, claim){
     const state = loadState();
-
-    // people input
-    const peopleInput = document.getElementById("peopleInput");
-    const peopleWithoutUnassigned = state.people.filter(p => p !== "Unassigned");
-    peopleInput.value = peopleWithoutUnassigned.join(", ");
-
-    // items table
-    const tbody = document.getElementById("itemsTbody");
-    tbody.innerHTML = "";
-    for (const it of items) {
-      const tr = document.createElement("tr");
-
-      const tdCat = document.createElement("td");
-      tdCat.textContent = it.category;
-
-      const tdItem = document.createElement("td");
-      tdItem.textContent = it.label;
-
-      const tdSel = document.createElement("td");
-      const sel = document.createElement("select");
-      for (const p of state.people) {
-        const opt = document.createElement("option");
-        opt.value = p;
-        opt.textContent = p;
-        sel.appendChild(opt);
-      }
-      sel.value = state.assigned[it.id] || "Unassigned";
-      sel.addEventListener("change", () => {
-        const s = loadState();
-        s.assigned[it.id] = sel.value;
-        saveState(s);
-        renderTotals();
-      });
-      tdSel.appendChild(sel);
-
-      const tdTotal = document.createElement("td");
-      tdTotal.className = "right";
-      tdTotal.textContent = money(it.total);
-
-      tr.appendChild(tdCat);
-      tr.appendChild(tdItem);
-      tr.appendChild(tdSel);
-      tr.appendChild(tdTotal);
-      tbody.appendChild(tr);
-    }
-
-    renderTotals();
-  }
-
-  function renderTotals() {
-    const state = loadState();
-    const totals = {};
-    for (const p of state.people) totals[p] = 0;
-
-    for (const it of items) {
-      const who = state.assigned[it.id] || "Unassigned";
-      if (!(who in totals)) totals[who] = 0;
-      totals[who] += it.total;
-    }
-
-    const totalsBox = document.getElementById("totalsBox");
-    totalsBox.innerHTML = "";
-    const peopleOrder = state.people.slice();
-
-    // keep Unassigned last in display
-    const uaIdx = peopleOrder.indexOf("Unassigned");
-    if (uaIdx !== -1) {
-      peopleOrder.splice(uaIdx, 1);
-      peopleOrder.push("Unassigned");
-    }
-
-    for (const p of peopleOrder) {
-      const name = document.createElement("div");
-      name.className = "name" + (p === "Unassigned" ? " warn" : "");
-      name.textContent = p;
-
-      const amt = document.createElement("div");
-      amt.className = "amt" + (p === "Unassigned" ? " warn" : "");
-      amt.textContent = money(totals[p] || 0);
-
-      totalsBox.appendChild(name);
-      totalsBox.appendChild(amt);
-    }
-
-    const grand = Object.values(totals).reduce((a,b) => a+b, 0);
-    const note = document.getElementById("unassignedNote");
-    const unassigned = totals["Unassigned"] || 0;
-
-    note.innerHTML = "";
-    const line1 = document.createElement("div");
-    line1.textContent = "Grand total: " + money(grand);
-    note.appendChild(line1);
-
-    const line2 = document.createElement("div");
-    line2.className = unassigned > 0 ? "warn" : "";
-    line2.textContent = unassigned > 0
-      ? ("Unassigned remaining: " + money(unassigned))
-      : "All items assigned.";
-    note.appendChild(line2);
-  }
-
-  document.getElementById("savePeopleBtn").addEventListener("click", () => {
-    const state = loadState();
-    const text = document.getElementById("peopleInput").value;
-    state.people = parsePeople(text);
+    if(!claim) delete state.claims[key];
+    else state.claims[key] = claim;
     saveState(state);
-    render();
-  });
+  }
 
-  document.getElementById("resetBtn").addEventListener("click", () => {
+  function computeTotalFor(name){
+    let sum = 0;
+    for(let si = 0; si < DATA.sections.length; si++){
+      const sec = DATA.sections[si];
+      for(let ii = 0; ii < sec.items.length; ii++){
+        const it = sec.items[ii];
+        const key = itemKey(si, ii);
+        const c = getClaim(key);
+        if(!c) continue;
+        const by = c.by || [];
+        if(by.includes(name)){
+          sum += (Number(it.price) || 0) / by.length;
+        }
+      }
+    }
+    return sum;
+  }
+
+  function joinNamesWithCommas(names){ return names.join(", "); }
+
+  function classifyItem(key){
+    const s = loadState();
+    const c = getClaim(key);
+    if(!c) return { kind: "unclaimed", tag: "unclaimed" };
+
+    const by = c.by || [];
+
+    if(by.length === 1){
+      const only = by[0];
+      if(only === s.me) return { kind: "mine", tag: "yours" };
+      return { kind: "other", tag: only };
+    }
+
+    const sharedTag = "Shared by " + joinNamesWithCommas(by);
+    if(by.includes(s.me)) return { kind: "mine", tag: sharedTag };
+    return { kind: "other", tag: sharedTag };
+  }
+
+  function popTotal(){
+    const el = document.getElementById("meTotal");
+    el.classList.remove("pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+  }
+
+  function toggleMeInClaim(key){
+    const s = loadState();
+    const c = getClaim(key);
+    const people = allPeople();
+
+    const by = c ? (Array.isArray(c.by) ? c.by.slice() : []) : [];
+    const idx = by.indexOf(s.me);
+    if(idx >= 0) by.splice(idx, 1);
+    else by.push(s.me);
+
+    const uniq = [];
+    for(const p of by){
+      if(people.includes(p) && !uniq.includes(p)) uniq.push(p);
+    }
+
+    if(uniq.length === 0) setClaim(key, null);
+    else setClaim(key, { by: uniq });
+  }
+
+  function shareWithEveryone(key){
+    const people = allPeople();
+    if(people.length === 0) return;
+    setClaim(key, { by: people });
+  }
+
+  function renderTopBar(){
+    const state = loadState();
+    const sel = document.getElementById("meSelect");
+    sel.innerHTML = "";
+
+    for(const p of allPeople()){
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    }
+    sel.value = state.me;
+
+    document.getElementById("meTotal").textContent = money(computeTotalFor(state.me));
+
+    sel.onchange = () => {
+      const st = loadState();
+      st.me = sel.value;
+      saveState(st);
+      renderAll();
+      popTotal();
+    };
+  }
+
+  function renderSections(){
+    const root = document.getElementById("sections");
+    root.innerHTML = "";
+
+    const state = loadState();
+
+    for(let si = 0; si < DATA.sections.length; si++){
+      const sec = DATA.sections[si];
+
+      const secEl = document.createElement("div");
+      secEl.className = "section";
+
+      const head = document.createElement("div");
+      head.className = "section-h";
+
+      const left = document.createElement("b");
+      left.textContent = sec.title;
+
+      let mineCount = 0, otherCount = 0, unCount = 0;
+      for(let ii = 0; ii < sec.items.length; ii++){
+        const key = itemKey(si, ii);
+        const c = getClaim(key);
+        if(!c){ unCount++; continue; }
+        if((c.by || []).includes(state.me)) mineCount++;
+        else otherCount++;
+      }
+
+      const right = document.createElement("span");
+      right.textContent = mineCount + " selected • " + otherCount + " others • " + unCount + " unclaimed";
+
+      head.appendChild(left);
+      head.appendChild(right);
+      secEl.appendChild(head);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+
+      for(let ii = 0; ii < sec.items.length; ii++){
+        const it = sec.items[ii];
+        const key = itemKey(si, ii);
+        const cls = classifyItem(key);
+
+        const row = document.createElement("div");
+        row.className = "item " + cls.kind;
+
+        // Tap = toggle you in/out
+        row.addEventListener("click", () => {
+          toggleMeInClaim(key);
+          renderAll();
+          popTotal();
+        });
+
+        // Long-hold = share with everyone
+        let holdTimer = null;
+        const startHold = () => {
+          holdTimer = setTimeout(() => {
+            holdTimer = null;
+            shareWithEveryone(key);
+            renderAll();
+            popTotal();
+          }, 520);
+        };
+        const cancelHold = () => {
+          if(holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+        };
+
+        row.addEventListener("pointerdown", (e) => { if(e.pointerType !== "mouse") startHold(); });
+        row.addEventListener("pointerup", cancelHold);
+        row.addEventListener("pointercancel", cancelHold);
+        row.addEventListener("pointerleave", cancelHold);
+
+        const l = document.createElement("div");
+        l.className = "left";
+
+        const label = document.createElement("div");
+        label.className = "label";
+        label.textContent = it.label;
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = cls.tag;
+        meta.appendChild(tag);
+
+        l.appendChild(label);
+        l.appendChild(meta);
+
+        const r = document.createElement("div");
+        r.className = "right";
+
+        const dot = document.createElement("div");
+        dot.className = "state-dot";
+
+        const amt = document.createElement("div");
+        amt.className = "amt";
+        amt.textContent = money(Number(it.price) || 0);
+
+        r.appendChild(dot);
+        r.appendChild(amt);
+
+        row.appendChild(l);
+        row.appendChild(r);
+        grid.appendChild(row);
+      }
+
+      secEl.appendChild(grid);
+      root.appendChild(secEl);
+    }
+  }
+
+  function renderAll(){
+    renderTopBar();
+    renderSections();
+  }
+
+  function fillGateSelect(){
+    const gs = document.getElementById("gateSelect");
+    gs.innerHTML = "";
+
+    const people = allPeople();
+    for(const p of people){
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      gs.appendChild(opt);
+    }
+
+    const addOpt = document.createElement("option");
+    addOpt.value = ADD_OPTION_VALUE;
+    addOpt.textContent = "Add new name";
+    gs.appendChild(addOpt);
+
+    gs.value = people[0] || ADD_OPTION_VALUE;
+  }
+
+  function openGate(){
+    fillGateSelect();
+    document.getElementById("newNameInput").value = "";
+    document.getElementById("addRow").classList.add("hidden");
+
+    document.getElementById("gate").classList.add("show");
+    document.getElementById("topbar").style.display = "none";
+    document.getElementById("app").style.display = "none";
+  }
+
+  function closeGate(){
+    document.getElementById("gate").classList.remove("show");
+    document.getElementById("topbar").style.display = "block";
+    document.getElementById("app").style.display = "block";
+  }
+
+  function forcePickNameEveryLoad(){
+    const s = loadState();
+    s.me = "";
+    saveState(s);
+    openGate();
+  }
+
+  function resetAll(){
     localStorage.removeItem(STORAGE_KEY);
-    render();
+    openGate();
+  }
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+  function continueWithName(name){
+    const chosen = canonicalName(name);
+    if(!chosen) return;
+
+    const st = loadState();
+    const people = allPeople();
+
+    if(!people.includes(chosen)){
+      if(!st.extraPeople) st.extraPeople = [];
+      st.extraPeople.push(chosen);
+    }
+
+    st.me = chosen;
+    saveState(st);
+
+    closeGate();
+    renderAll();
+    popTotal();
+  }
+
+  document.getElementById("gateSelect").addEventListener("change", (e) => {
+    const v = e.target.value;
+    const addRow = document.getElementById("addRow");
+    if(v === ADD_OPTION_VALUE){
+      addRow.classList.remove("hidden");
+      document.getElementById("newNameInput").focus();
+    }else{
+      addRow.classList.add("hidden");
+    }
   });
 
-  render();
+  document.getElementById("continueBtn").addEventListener("click", () => {
+    const v = document.getElementById("gateSelect").value;
+    if(v === ADD_OPTION_VALUE){
+      document.getElementById("addRow").classList.remove("hidden");
+      document.getElementById("newNameInput").focus();
+      return;
+    }
+    continueWithName(v);
+  });
+
+  document.getElementById("addBtn").addEventListener("click", () => {
+    continueWithName(document.getElementById("newNameInput").value);
+  });
+
+  document.getElementById("newNameInput").addEventListener("keydown", (e) => {
+    if(e.key === "Enter") continueWithName(e.target.value);
+  });
+
+  async function boot(){
+    try{
+      const res = await fetch("./data.json", { cache: "no-store" });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      DATA = await res.json();
+
+      // Validate new format
+      if(!DATA || !Array.isArray(DATA.people) || !Array.isArray(DATA.sections)) throw new Error("Invalid data.json");
+      for(const sec of DATA.sections){
+        if(!sec || typeof sec.title !== "string" || !Array.isArray(sec.items)) throw new Error("Invalid section in data.json");
+        for(const it of sec.items){
+          if(!it || typeof it.label !== "string" || typeof it.price !== "number") throw new Error("Invalid item in data.json");
+        }
+      }
+
+      forcePickNameEveryLoad();
+    }catch(err){
+      document.getElementById("app").style.display = "block";
+      const box = document.getElementById("corsWarn");
+      box.style.display = "block";
+      box.textContent =
+        "Couldn't load data.json. If you're opening index.html directly (file://), browsers often block fetch(). " +
+        "Use GitHub Pages (or any simple web server) so data.json can load. Error: " + err.message;
+    }
+  }
+
+  boot();
 </script>
 </body>
 </html>
